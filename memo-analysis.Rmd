@@ -90,8 +90,8 @@ umd_salary_25 |> # using the 25 dataset
 
 ```
 
+*Pines and Maryland athletics director James E. Smith are the only university employees currently with the university whose salary is above $1 million, in 2024 no current employee had a salary of a million.*
 
-*Pines is now one of four university employees' whose salary is above $1 million, in 2024 only Maryland Men's Basketball head coach Mark Turgen had a salary of more than a million.*
 
 ```{r}
 
