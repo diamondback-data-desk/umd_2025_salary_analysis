@@ -526,7 +526,7 @@ umd_salary_25 |> # 25 data
 
 ```
 
-*The number of the 10 most highest-paid employees in intercollegiate athletics nearly doubled from four in 2024 to seven in 2025, according to the paper’s analysis.*
+*Seven current and former athletic department employees are among the top 10 highest-paid people within the university, nearly doubling from four in 2024, according to the paper’s analysis.*
 
 ```{r}
 umd_salary_24 |> # 24 data
