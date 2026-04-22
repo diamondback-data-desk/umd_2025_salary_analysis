@@ -1,0 +1,745 @@
+---
+title: "memo-analysis"
+output: html_document
+---
+
+```{r}
+
+#importing libraries
+
+library(tidyverse)
+library(janitor)
+library(readxl)
+library(stringr)
+
+```
+
+```{r}
+
+# loading in salary data
+
+umd_salary_25 <- read_excel("data/Employee Annual Salaried-Diamondback 2025.xlsx") |> clean_names()
+ 
+umd_salary_24 <- read_csv("data/diamondback-annual-salary-data-2024.csv") |> clean_names()
+
+# taken from Mario's excel sheet
+umd_salary_23 <- read_csv("data/Employee Annual Salaried-Diamondback 2024 - SalaryData2023.csv") |> clean_names()
+
+```
+
+```{r}
+
+# cleaning the salary from character with $ in front to numerical so we can add later
+umd_salary_24 <-
+umd_salary_24 |>
+  mutate(
+    appt_base_annual_salary = gsub("\\$", "", appt_base_annual_salary),
+    appt_base_annual_salary = as.numeric(gsub(",","", appt_base_annual_salary)),
+  year = 2024 #adding a year indicator
+  )
+
+# doing the same for 2023 salary data
+
+umd_salary_23 <-
+umd_salary_23 |>
+  mutate(
+    appt_base_annual_salary = gsub("\\$", "", appt_base_annual_salary),
+    appt_base_annual_salary = as.numeric(gsub(",","", appt_base_annual_salary)),
+  year = 2023 #adding a year indicator
+  )
+
+# adding a year column to the 2025 dataset
+
+umd_salary_25 <-
+umd_salary_25 |>
+  mutate(
+    year = 2025
+  )
+```
+
+*University of Maryland president Darryll Pine's Salary increased to more than $1 million for the first time in 2025.*
+
+*Pine's salary increased about 7 percent from more than $963,000 in 2024.*
+
+```{r}
+
+# getting 2024 salary for Pines
+
+umd_salary_24 |> # using the 24 dataset
+  filter(
+    primary_name == "Pines, Darryll J." # filtering for just Pines
+  ) |>
+  select(year, primary_name, appt_base_annual_salary) # getting his name, the year of the salary and the salary ammount.
+
+# getting 2025 salary for Pines
+
+umd_salary_25 |> # using the 25 dataset
+  filter(
+    primary_name == "Darryll Pines" # filtering for only Pines
+  ) |>
+  select(year, primary_name, appt_base_annual_salary) # getting only the info we need and not including other columns
+
+# 1032477 in 2025
+# 963572 in 2024
+
+# percent diff
+# ((new value - old value) / old value) * 100
+((1032477 - 963572) / 963572) * 100
+
+# About a 7 percent increase to more than 1 million 
+
+```
+
+
+*Pines is now one of four university employees' whose salary is above $1 million, in 2024 only Maryland Men's Basketball head coach Mark Turgen had a salary of more than a million.*
+
+```{r}
+
+# filtering for university employees that had a salary of a million dollars or more in 2024
+umd_salary_24 |>
+  filter(
+    appt_base_annual_salary >= 1000000
+  )
+# none except Mark Turgen ... Maryland Men's Basketball ex head coach 
+
+# filtering for university employees that had a salary of a million dollars or more in 2025
+umd_salary_25 |>
+  filter(
+    appt_base_annual_salary >= 1000000
+  )
+# 4 people had a salary of a million or more including Turgen ... Pines, Jim Smith and Brian Williams. Brian Williams does not currently work at this university.
+
+# so it is just Pines and Smith who have a salary of more than a million
+
+```
+
+```{r}
+
+# Cleaning umd 2025 and 2024 salary to determine division breakdown. Beforehand the salary divisions were locked in a string that made it too un-useable
+
+
+# first step is taking out the acronyms used the unit column and putting these pulled out strings into a new column named division_new
+
+umd_salary_25 <-
+umd_salary_25 |>
+  mutate(
+    division_new = gsub("[–—-].*$", "", unit) #replacing everything after the first dash with a bank, essentially removing everything after the first division reference
+  )
+
+# doing the same thing for the 2024 data set, its just located in a different column
+umd_salary_24 <-
+umd_salary_24 |>
+  mutate(
+    division_new = gsub("[–—-].*$", "", department)
+  )
+
+```
+
+```{r}
+
+# checking the contents of the new divisions column
+
+umd_salary_25 |>
+  group_by(division_new) |>
+  summarise(
+    count = n()
+  )
+
+# there's a bit of a white space issue that seems to be making somethings not group together properly
+
+# fixing white space issue
+
+umd_salary_25 <-
+umd_salary_25 |>
+  mutate(division_new = str_to_upper(division_new)) |> # chaning the new division string to all uppercase 
+  mutate(division_new = str_trim(division_new)) # str_trim removes whitespace from the begining and end of a string
+
+```
+
+```{r}
+
+# checking again
+
+umd_salary_25 |>
+  group_by(division_new) |>
+  summarise(
+    count = n()
+  )
+
+# there's a case where ENG is listed as the division though 
+
+# investigating the rows where division is listed as ENG
+umd_salary_25 |>
+  filter(
+    division == "ENG"
+  )
+
+# seems to be ENG happened only after I stripped out division from the unit but previously the division was SVPAAP so I'm just going to change it back for these two cases
+
+umd_salary_25 <- 
+umd_salary_25 |>
+mutate(
+    division_new = ifelse(division_new == "ENG", "SVPAAP", division_new)
+  )
+
+```
+
+```{r}
+# checking again
+
+umd_salary_25 |>
+  group_by(division_new) |>
+  summarise(
+    count = n()
+  )
+
+# there's divisions listed as VP FOR BELONGING and VPA PUBLIC SAFETY but there such small numbers that I'm going to check them
+
+# inspecting VP FOR BELONGING (8 instances) and VPA PUBLIC SAFETY (3 instances)
+
+umd_salary_25 |>
+  filter(division_new == "VP FOR BELONGING" | division_new == "VPA PUBLIC SAFETY") |> 
+  arrange(unit)
+
+# the division_old lists them as either PRES of VPA ...  PRES for VP for Belonging and VPA for VPA Public Safety
+# changing the division to match these cases, this will be fine because we will still know the previous unit name
+
+umd_salary_25 <-
+umd_salary_25 |>
+  mutate(
+    division_new = ifelse(division_new == "VP FOR BELONGING", "PRES", division_new)
+  ) |>
+  mutate(
+    division_new = ifelse(division_new == "VPA PUBLIC SAFETY", "VPA", division_new)
+  )
+```
+
+```{r}
+
+# checking again
+
+umd_salary_25 |>
+  group_by(division_new) |>
+  summarise(
+    count = n()
+  )
+
+# looks like the only ones left is "PEITZMEIER FACULTY" since there was only 1 reference to it in the new data set
+
+umd_salary_25 |>
+  filter(division_new == "PEITZMEIER FACULTY")
+
+# was previously labeled as SVPAAP, chaning division new to match this
+
+umd_salary_25 <-
+umd_salary_25 |>
+  mutate(
+    division_new = ifelse(division_new == "PEITZMEIER FACULTY", "SVPAAP", division_new)
+  )
+
+```
+
+```{r}
+
+# checking
+
+umd_salary_25 |>
+  group_by(division_new) |>
+  summarise(
+    count = n()
+  )
+
+# divisions seem all good now for 2025!
+
+```
+
+```{r}
+
+# checking 2024 
+umd_salary_24 |> group_by(division_new) |>
+  summarise(
+    count = n()
+  )
+
+# there seems to be more divisions the there were in 2025 but that's not necessarily a bad thing since all I want is to compare academic departments at the university. Additionally the Office of Inst Research, Planning &\nAssessment is weird here but that's fine too just because again its not an academic department.
+
+# so there's nothing to change about the 2024 data set
+
+```
+
+```{r}
+# Next step is to filter for only academic departments at the university
+
+# Creating a filter for the 2025 data for only academic departments
+# Filtering for what we don't want
+salary_25_academic <-
+umd_salary_25 |> # filtering out everything that isn't an academic department
+                 # decided manually by just looking up each acronym on google and checking what they represented
+  filter(!(division_new == "DIT" | division_new == "VPR" | division_new == "VPUR" | division_new == "GRAD" | division_new == "PRES" | division_new == "SVPAAP" | division_new == "USG" | division_new == "UGST" | division_new == "LIBR" | division_new == "VPA" | division_new == "VPSA" | division_new == "EXST" | division_new == "VPF")) |>
+  mutate(
+    title = str_to_lower(title)
+  )
+
+```
+
+```{r}
+
+# doing the same for 2024 
+
+salary_24_academic <-
+umd_salary_24 |> # same steps were taken for 2024
+  filter(!(division_new == "DIT" | division_new == "VPR" | division_new == "VPUR" | division_new == "GRAD" | division_new == "PRES" | division_new == "SVPAAP" | division_new == "USG" | division_new == "UGST" | division_new == "LIBR" | division_new == "VPA" | division_new == "VPSA" | division_new == "EXST" | division_new == "Office of Inst Research, Planning &\nAssessment" | division_new == "UPUR" | division_new == "VPF" | division_new == "VPSA")) |>
+  mutate(
+    title = str_to_lower(title)
+  )
+
+```
+
+
+```{r}
+
+# Looking for what I can filter for only professors
+
+salary_25_academic |>
+  group_by(title) |>
+  summarise(
+    count = n()
+  )
+
+# looks like every person likely to be a professor has professor in their title
+
+```
+
+```{r}
+
+# doing the same for 2024
+
+salary_24_academic |>
+  group_by(title) |>
+  summarise(
+    count = n()
+  )
+
+# looks like prof and professor are used
+
+```
+
+*The number of professors in academic divisions decreased about six percent at this university between spring 2024 and fall 2025*
+
+```{r}
+
+# to decide what to filter for I grouped by and summarized all the different title types, looked through it and noted that all those who were considered professors had that exact name within their title in the 2025 data set. In the 2024 data set there was reference to professors as prof so that was also accounted for.
+
+salary_25_academic |>
+  filter(
+    str_detect(title, "professor")
+  ) |>
+  summarise(
+    count = n()
+  )
+# 1872 professors in academic divisions
+
+salary_24_academic |>
+  filter(
+    str_detect(title, "professor") |
+    str_detect(title, "prof")
+  ) |>
+  summarise(
+    count = n()
+  )
+# 2001 professors in academic divisions
+
+# pct difference between 24 and 25 
+((1872 - 2001) / 2001) * 100
+
+# -6.446777 percent
+
+```
+
+*The median salary for professors increased by more than $13,800 during the same period of time to about $150,000*
+
+```{r}
+
+# summarizing median pay for professors in academic departments in 2025
+salary_25_academic |>
+  filter(
+    str_detect(title, "professor")
+  ) |>
+  summarise(
+    median_salary = median(appt_base_annual_salary)
+  )
+# median salary is $149,656 in 2025
+
+# getting median pay for professors in academic departments in 2024
+salary_24_academic |>
+  filter(
+    str_detect(title, "professor") |
+    str_detect(title, "prof")
+  ) |>
+  summarise(
+    median_salary = median(appt_base_annual_salary)
+  )
+# Median pay for 2024 was $135,839
+
+# dollar difference
+149656 - 135839
+
+# median salary increased $13,817 between 2024 and 2025
+
+```
+
+*The median salary for professors at the college of computer, math and natural science increased by about 22 percent, the highest increase among academic departments. Professors in the A. James Clark School of Engineering, school of public policy and school of architecture had a median salary increase of more than 10 percent.* 
+
+```{r}
+
+# getting median salary for 2025 across all academic divisions
+prof_med_salary_25 <-
+salary_25_academic |>
+  filter(
+    str_detect(title, "professor")
+  ) |>
+  group_by(division_new) |>
+  summarise(
+    median_salary_25 = median(appt_base_annual_salary)
+  )
+
+# getting median salary accross all academic divisions for 2024
+prof_med_salary_24 <-
+salary_24_academic |>
+  filter(
+    str_detect(title, "professor") |
+    str_detect(title, "prof")
+  ) |>
+  group_by(division_new) |>
+  summarise(
+    median_salary_24 = median(appt_base_annual_salary)
+  )
+
+# combinging the two into one data frame
+median_prof_salary_24_25 <-
+left_join(prof_med_salary_25, prof_med_salary_24, by = "division_new")
+
+# finding the percent difference in median salary between all divisions between 2024 and 2025
+median_prof_salary_24_25 |>
+  mutate(
+    pct_diff = ((median_salary_25 - median_salary_24) / median_salary_24) * 100
+  ) |>
+  arrange(desc(pct_diff)) # sorting by the division with the highest salary increase
+
+# CMNS median salary increased by 21.814705 %, increased the most compared to other divisions.
+
+# can also see that ARCH, ENGR and PLCY divisions had median pay increases of more than 10 percent.
+
+```
+
+*Professors at the Robert H. Smith school of business have a median salary of more than $254,000, the highest among other academic departments.*
+
+```{r}
+
+# finding median salary for professors in 2025
+salary_25_academic |>
+  filter(
+    str_detect(title, "professor")
+  ) |>
+  group_by(division_new) |>
+  summarise(
+    median_salary_25 = median(appt_base_annual_salary)
+  ) |> 
+  arrange(desc(median_salary_25)) # getting the division with the top median salary pay at the top of the data frame.
+
+# BMGT has the highest median salaries for professors compared to other academic departments
+
+```
+
+*Half of the top ten most paid professors in academic departments are in the school of business, all with a salary of at least $500,000.*
+
+```{r}
+
+# getting top 10 paid professors across divisions
+
+salary_25_academic |>
+  filter(
+    str_detect(title, "professor")
+  ) |>
+  arrange(desc(appt_base_annual_salary)) |>
+  head(10) |>
+  select(division_new, title, appt_base_annual_salary)
+
+# 5 of the 10 top paid professors in academic divisions were in BMGT division
+
+```
+
+*Appointed in May of 2025, university director of athletics James E. Smith’s salary is currently $1.2 million, the highest out of all employees currently working at the university according to the paper’s analysis.*
+
+Note: Since Mark Turgeon is no longer with the university he is not counted as a current employee and is then not the top employee salary at this university in 2025.
+
+```{r}
+
+umd_salary_25 |> # using 25 data
+  arrange(desc(appt_base_annual_salary)) |> # arranging from higehst salaries to lowest salaries
+  select(primary_name, appt_base_annual_salary) # only asking for the same of the employee and their salary, other info not needed
+
+```
+
+*Damon Evan, the previous director of athletics for seven years, had a salary of more than $836,000 in 2024 ...*
+
+```{r}
+
+umd_salary_24 |> # 2024 data set
+  filter(primary_name == "Evans, Damon") |> # getting only Damon Evans
+  select(primary_name, title, appt_base_annual_salary)
+
+```
+
+*about 44 percent less than Smith’s first year salary at this university.*
+
+for section head as well
+*James E. Smith’s salary is more than $363,000 higher than the last director of athletics.*
+
+```{r}
+
+# Smith's salary in 2025: 1200000
+# Evans salary in 2024: 836256.3
+
+1200000 - 836256.3
+
+# difference of $363,743.7 between Smith and Evans
+
+((1200000 - 836256.3) / 836256.3) * 100
+
+# percent difference 43.49668 increase from Evans to Smith's salary
+
+```
+
+*The athletic department now makes up a majority of the highest-paid employees at this university.*
+
+```{r}
+
+umd_salary_25 |> # 25 data
+  arrange(desc(appt_base_annual_salary)) |> # highest salary to least
+  select(unit, appt_base_annual_salary, title) |> # only unit, salary and title
+  head(10) # only the employees with the top 10 salaries
+
+# of the 10 most paid employees at the university 7 are  within the ICA/Intercollegiate Athletics unit. 
+
+# Note: this includes those not currently with the department notably Turgen and ex MD football defensive coordinator Brian Williams 
+
+```
+
+*The number of the 10 most highest-paid employees in intercollegiate athletics nearly doubled from four in 2024 to seven in 2025, according to the paper’s analysis.*
+
+```{r}
+umd_salary_24 |> # 24 data
+  arrange(desc(appt_base_annual_salary)) |> # highest salary to least
+  select(department, appt_base_annual_salary, title) |> # only department, salary and title
+  head(10)
+
+# 4 of the 10 top most paid employees at the university were within the athletic department
+
+# from 2024: 4 of 10
+# from 2025: 7 of 10
+
+# nearly doubled!
+```
+
+To find the median salary of employees within the intercollegiate athletics division I needed to separate all employees from the division from the larger data set.
+
+```{r}
+
+# found that there were the following unit categorizations for those involved in the intercollegiate athletic department
+
+# used this do find it since I realized that they were all located at least within the President divison:
+
+umd_salary_25 |>
+  filter(str_detect(unit, "PRES") | str_detect(unit, "ICA")) |>
+  group_by(unit) |>
+  summarise(
+    count = n()
+  )
+
+# PRES-ICA-Director's Office/Admin	
+# PRES-ICA-External Relations	
+# PRES-ICA-Football	
+# PRES-ICA-Men's Basketball
+# PRES-ICA-Operations	
+# PRES-ICA-Other Men's Sports	
+# PRES-ICA-Sports Admin (Overloads/Nonstandards)	
+# PRES-ICA-Support Services	
+# PRES-ICA-Women's Sports	
+# PRES-Intercollegiate Athletics
+
+# creating a filter so that I can find the median salary for those within the department / a count for the number employed in this department
+
+
+ica_25_filter <-
+umd_salary_25 |>
+  filter(
+    unit == "PRES-ICA-Director's Office/Admin" |
+    unit == "PRES-ICA-External Relations" |
+    unit == "PRES-ICA-Football" |
+    unit == "PRES-ICA-Men's Basketball" |
+    unit == "PRES-ICA-Operations" |
+    unit == "PRES-ICA-Other Men's Sports" |
+    unit == "PRES-ICA-Sports Admin (Overloads/Nonstandards)" |
+    unit == "PRES-ICA-Support Services" |
+    unit == "PRES-ICA-Women's Sports" |
+    unit == "PRES-Intercollegiate Athletics" 
+  )
+
+```
+
+*The median salary for an employee at the intercollegiate athletic department makes just under $100,000*
+
+```{r}
+
+ica_25_filter |> # using the previously created filter
+  summarise(
+    median = median(appt_base_annual_salary) # finding median salary
+  )
+
+# median salary for those within the athletic department is $99,545.77
+
+```
+
+Wanted to compare it to 2024 median salary to see if this increased. The filter for this one isn't difficult since all those within the athletic department has their department listed as PRES-Intercollegiate Athletics so the filter is just for that.
+
+```{r}
+
+ica_filter_24 <-
+umd_salary_24 |> # 2024 data set
+  filter(
+    department == "PRES-Intercollegiate Athletics" # only athletic department employees
+  )
+
+```
+
+*...a 10.6 percent increase from 2024*
+
+```{r}
+
+ica_filter_24 |>
+  summarise(
+    median_salary = median(appt_base_annual_salary)
+  )
+
+# median athletic department salary was $90,000 in 2024
+
+# getting percent diff:
+((99545.77 - 90000) / 90000) * 100
+
+# increased 10.60641 percent in 2025 compared to 2024
+```
+
+Need to do the same thing against the 2023 data I have from Mario. The filter is the same for 23 as for 24.
+
+```{r}
+
+ica_filter_23 <-
+umd_salary_23 |>
+  filter(
+    department == "PRES-Intercollegiate Athletics" # 2023 filter for only athletic department employees
+  )
+
+```
+
+*The median pay increased about 0.1 percent between 2023 and 2024, according to the paper’s analysis.*
+
+```{r}
+
+ica_filter_23 |> # 2023 data set
+  summarise(
+    median = median(appt_base_annual_salary) # getting the median salary
+  )
+
+((90000-89899.51)/89899.51) * 100
+
+# percent diff between 2023 and 2024 was an increase of 0.1117804 percent
+
+```
+
+*Despite his absence from Maryland since 2021, former Maryland men’s basketball head coach Mark Turgen’s buyout deal makes him the highest-paid person at this university.*
+
+```{r}
+
+umd_salary_25 |> # 25 data set
+  arrange(desc(appt_base_annual_salary)) |> # salary from most to least
+  head(1) |> # getting only the top base annual salary
+  select(title, primary_name, appt_base_annual_salary)
+
+```
+
+*Former Maryland football defensive coordinator Biran Williams is the third most-paid employee since his departure in the spring of 2025, according to 2025 data.*
+
+```{r}
+
+umd_salary_25 |> # 25 data set 
+  arrange(desc(appt_base_annual_salary)) |> # salary most to least 
+  head(3) |> # top 3 most paid
+  select(
+    primary_name, title, appt_base_annual_salary
+  )
+
+```
+
+*Turgen’s salary was $1.25 million and Williams’ salary was reported at $1.06 million, according to 2025 salary data.*
+
+```{r}
+
+# Mark Turgeon's salary
+umd_salary_25 |>
+  filter(primary_name == "Mark Turgeon") |>
+  select(primary_name, appt_base_annual_salary, title)
+
+# Williams salary
+umd_salary_25 |>
+  filter(primary_name == "Brian Williams") |>
+  select(primary_name, appt_base_annual_salary, title)
+
+```
+
+*Turgen’s buyout is more than current men’s basketball head coach Brent “Buzz” Williams’ $500,000 salary.*
+
+```{r}
+
+# Buzz Williams' salary
+
+umd_salary_25 |>
+  filter(primary_name == "Brent Williams") |>
+  select(primary_name, appt_base_annual_salary, title)
+
+
+```
+
+*Only one academic division had a median salary of more than $100,000 all employees, now seven do*
+
+*The median salary for employees at six academic divisions increased to more than $100,000 during 2025. In 2024, only the business and management division had a median salary of more than $100,000 for employees.*
+
+*Other academic divisions whose median salary increased to more than $100,000 include the college of behavioral and social sciences, the A. James Clark school of engineering and the college of computer, mathematical and natural sciences.*
+
+```{r}
+
+umd_salary_24 |> # 24 data set
+  filter(!(division_new == "DIT" | division_new == "VPR" | division_new == "VPUR" | division_new == "GRAD" | division_new == "PRES" | division_new == "SVPAAP" | division_new == "USG" | division_new == "UGST" | division_new == "LIBR" | division_new == "VPA" | division_new == "VPSA" | division_new == "EXST" | division_new == "Office of Inst Research, Planning &\nAssessment" | division_new == "UPUR" | division_new == "VPF" | division_new == "VPSA")) |> # filtering out non-academic divisions
+  group_by(division_new) |> # grouping by the previously made divisions column
+  summarise(
+    median_salary = median(appt_base_annual_salary) # getting median salary for each department
+  ) |>
+  filter(
+    median_salary >= 100000 # only showing departments with a median salary of at least a million
+  )
+
+# only academic department that has a median salary of at least a million is BMGT
+
+umd_salary_25 |>
+  group_by(
+    division_new
+  ) |> # removing non-academic departments for ease of interpretation
+  filter(!(division_new == "DIT" | division_new == "VPR" | division_new == "VPUR" | division_new == "GRAD" | division_new == "PRES" | division_new == "SVPAAP" | division_new == "USG" | division_new == "UGST" | division_new == "LIBR" | division_new == "VPA" | division_new == "VPSA" | division_new == "EXST" | division_new == "VPF")) |>
+  summarise(
+    median_salary = median(appt_base_annual_salary), # getting median salary
+  ) |>
+  filter(median_salary >= 100000)
+
+# BMGT, BSOS, CMNS, ENGR, INFO, JOUR and SPHL all have a median salary of at least a million for employees 
+
+```
