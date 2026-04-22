@@ -710,6 +710,28 @@ umd_salary_25 |>
 
 ```
 
+*Current Maryland football defensive coordinator Ted Monachino’s $600,000 salary is $460,000 less than Williams’ current buyout with the university.*
+
+```{r}
+# Ted Monachino's salary
+
+umd_salary_25 |>
+  filter(primary_name == "Ted Monachino") |>
+  select(primary_name,appt_base_annual_salary, title)
+
+# 6e+05 = 600,000
+
+umd_salary_25 |>
+  filter(primary_name == "Brian Williams") |>
+  select(primary_name, appt_base_annual_salary, title)
+
+# 1060000
+
+1060000 - 600000
+
+```
+
+
 *Only one academic division had a median salary of more than $100,000 all employees, now seven do*
 
 *The median salary for employees at six academic divisions increased to more than $100,000 during 2025. In 2024, only the business and management division had a median salary of more than $100,000 for employees.*
